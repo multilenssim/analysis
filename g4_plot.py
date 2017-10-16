@@ -82,35 +82,37 @@ def compare_bkgrej(seed_loc):
         	     		data = np.loadtxt(os.path.join(root, fl))
 			        c_sgn = data[0]
 			        c_bkg = data[1]
-				max_diam = read_conf(root)['edge_length']/(read_conf(root)['base']+np.sqrt(3)-1)
-				px_per_lens = sum(curved_surface2(read_conf(root)['detector_r'],max_diam,read_conf(root)['nsteps'],read_conf(root)['b_pixel']))
 				n = read_conf(root)['base']
+				max_diam = read_conf(root)['edge_length']/(n+np.sqrt(3)-1)
+				px_per_lens = sum(curved_surface2(read_conf(root)['detector_r'],max_diam,read_conf(root)['nsteps'],read_conf(root)['b_pixel']))
 			        ks_bin = binning(c_sgn,c_bkg)
 				conf_lev = [ia.find_cl(1-np.cumsum(norm_hist(ks_bin,c_b)),np.cumsum(norm_hist(ks_bin,c_s)),0.2) for c_s,c_b in zip(np.split(c_sgn,spl),np.split(c_bkg,spl))]
 				av_conf_lev = np.mean(conf_lev)
 				#e_hist = np.cumsum(ia.make_hist(ks_bin,c_s))
 				#g_hist = 1-np.cumsum(ia.make_hist(ks_bin,c_b))
 				ax2.errorbar(px_per_lens, av_conf_lev, yerr=np.std(conf_lev)/np.sqrt(spl) ,fmt='o')
-
-				if read_conf(root)['EPD_ratio'] == 1.0 and sl == 'r0-1':
-					#ax1.plot(e_hist,g_hist,label=root.split('/')[4]+', base lenses: %i'%n)
-					line11.append([px_per_lens, av_conf_lev])
-               		        if read_conf(root)['EPD_ratio'] == 0.8 and sl == 'r0-1':
-					#ax1.plot(e_hist,g_hist,label=root.split('/')[4]+', base lenses: %i'%n)
-                                	line12.append([px_per_lens, av_conf_lev])
-                       		if read_conf(root)['EPD_ratio'] == 1.0 and sl == 'r3-4':
-                        	        line21.append([px_per_lens, av_conf_lev])
-                        	if read_conf(root)['EPD_ratio'] == 0.8 and sl == 'r3-4':
-                        	        line22.append([px_per_lens, av_conf_lev])
+				if px_per_lens*(n*(n+1)/2)<5500:
+					if read_conf(root)['EPD_ratio'] == 1.0 and sl == 'r0-1':
+						#ax1.plot(e_hist,g_hist,label=root.split('/')[4]+', base lenses: %i'%n)
+						line11.append([px_per_lens, av_conf_lev])
+               		        	if read_conf(root)['EPD_ratio'] == 0.8 and sl == 'r0-1':
+						#ax1.plot(e_hist,g_hist,label=root.split('/')[4]+', base lenses: %i'%n)
+                                		line12.append([px_per_lens, av_conf_lev])
+                       			if read_conf(root)['EPD_ratio'] == 1.0 and sl == 'r3-4':
+                        		        line21.append([px_per_lens, av_conf_lev])
+                        		if read_conf(root)['EPD_ratio'] == 0.8 and sl == 'r3-4':
+                        		        line22.append([px_per_lens, av_conf_lev])
 
 	line11 = np.asarray(sorted(line11,key=lambda x: x[0]))
 	line12 = np.asarray(sorted(line12,key=lambda x: x[0]))
 	line21 = np.asarray(sorted(line21,key=lambda x: x[0]))
 	line22 = np.asarray(sorted(line22,key=lambda x: x[0]))
-	ax2.plot(line11[:,0],line11[:,1],linestyle='-',label='EPD ratio = 1.0, seed location 0<r<1 meters')	
-	ax2.plot(line12[:,0],line12[:,1],linestyle='-.',label='EPD ratio = 0.8, seed location 0<r<1 meters')	
-	ax2.plot(line21[:,0],line21[:,1],linestyle=':',label='EPD ratio = 1.0, seed location 3<r<4 meters')	
-	ax2.plot(line22[:,0],line22[:,1],linestyle='--',label='EPD ratio = 0.8, seed location 3<r<4 meters')	
+	ax2.plot(line11[:,0],line11[:,1],linestyle='-',color='green')
+	ax2.plot(line12[:,0],line12[:,1],linestyle='-',color='red')
+	ax2.plot(line21[:,0],line21[:,1],linestyle=':',color='green')
+	ax2.plot(line22[:,0],line22[:,1],linestyle=':',color='red')
+	ax2.fill_between(line11[:,0],line11[:,1],line21[:,1],facecolor='green',alpha=0.5, label='EPD ratio = 1.0')
+	ax2.fill_between(line12[:,0],line12[:,1],line22[:,1],facecolor='red', alpha=0.5, label='EPD ratio = 0.8')	
 	#ax1.grid(linestyle='--', linewidth=0.5)
 	#ax1.set_xlabel('signal efficiency')
 	#ax1.set_ylabel('background rejection')
