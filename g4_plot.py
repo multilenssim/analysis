@@ -71,6 +71,7 @@ def plot_cl(path):
 def compare_bkgrej(seed_loc):
 	line11,line12,line21,line22 = [],[],[],[]
 	spl = 2
+	energy = 2
 	#f1, ax1 = plt.subplots()
 	#f2, ax2 = plt.subplots()
 	#ax3 = ax2.twinx()
@@ -78,7 +79,8 @@ def compare_bkgrej(seed_loc):
 	for sl in seed_loc:
 		for root, _, files in os.walk('/farmshare/user_data/jdalmass/'):
 		    for fl in files:
-        		if fl.endswith(sl+'electron-gammac2') and read_conf(root)['lens_system_name'] == 'Sam1':
+        		if fl.endswith(sl+'electron-gammac2') and read_conf(root)['lens_system_name'] == 'Sam1' and root[35] == 'k':
+				EPDR_flag = False
         	     		data = np.loadtxt(os.path.join(root, fl))
 			        c_sgn = data[0]
 			        c_bkg = data[1]
@@ -91,28 +93,30 @@ def compare_bkgrej(seed_loc):
 				#e_hist = np.cumsum(ia.make_hist(ks_bin,c_s))
 				#g_hist = 1-np.cumsum(ia.make_hist(ks_bin,c_b))
 				ax2.errorbar(px_per_lens, av_conf_lev, yerr=np.std(conf_lev)/np.sqrt(spl) ,fmt='o')
-				if px_per_lens*(n*(n+1)/2)<5500:
-					if read_conf(root)['EPD_ratio'] == 1.0 and sl == 'r0-1':
-						#ax1.plot(e_hist,g_hist,label=root.split('/')[4]+', base lenses: %i'%n)
-						line11.append([px_per_lens, av_conf_lev])
-               		        	if read_conf(root)['EPD_ratio'] == 0.8 and sl == 'r0-1':
-						#ax1.plot(e_hist,g_hist,label=root.split('/')[4]+', base lenses: %i'%n)
-                                		line12.append([px_per_lens, av_conf_lev])
-                       			if read_conf(root)['EPD_ratio'] == 1.0 and sl == 'r3-4':
-                        		        line21.append([px_per_lens, av_conf_lev])
-                        		if read_conf(root)['EPD_ratio'] == 0.8 and sl == 'r3-4':
-                        		        line22.append([px_per_lens, av_conf_lev])
+
+				if read_conf(root)['EPD_ratio'] == 1.0 and sl[:4] == 'r0-1':
+					#ax1.plot(e_hist,g_hist,label=root.split('/')[4]+', base lenses: %i'%n)
+					line11.append([px_per_lens, av_conf_lev])
+              		        if read_conf(root)['EPD_ratio'] == 0.8 and sl[:4] == 'r0-1':
+					EPDR_flag = True
+					#ax1.plot(e_hist,g_hist,label=root.split('/')[4]+', base lenses: %i'%n)
+                                	line12.append([px_per_lens, av_conf_lev])
+                       		if read_conf(root)['EPD_ratio'] == 1.0 and sl[:4] == 'r3-4':
+                        	        line21.append([px_per_lens, av_conf_lev])
+                        	if read_conf(root)['EPD_ratio'] == 0.8 and sl[:4] == 'r3-4':
+                        	        line22.append([px_per_lens, av_conf_lev])
 
 	line11 = np.asarray(sorted(line11,key=lambda x: x[0]))
 	line12 = np.asarray(sorted(line12,key=lambda x: x[0]))
 	line21 = np.asarray(sorted(line21,key=lambda x: x[0]))
 	line22 = np.asarray(sorted(line22,key=lambda x: x[0]))
 	ax2.plot(line11[:,0],line11[:,1],linestyle='-',color='green')
-	ax2.plot(line12[:,0],line12[:,1],linestyle='-',color='red')
 	ax2.plot(line21[:,0],line21[:,1],linestyle=':',color='green')
-	ax2.plot(line22[:,0],line22[:,1],linestyle=':',color='red')
 	ax2.fill_between(line11[:,0],line11[:,1],line21[:,1],facecolor='green',alpha=0.5, label='EPD ratio = 1.0')
-	ax2.fill_between(line12[:,0],line12[:,1],line22[:,1],facecolor='red', alpha=0.5, label='EPD ratio = 0.8')	
+	if EPDR_flag:
+		ax2.plot(line12[:,0],line12[:,1],linestyle='-',color='red')
+		ax2.plot(line22[:,0],line22[:,1],linestyle=':',color='red')
+		ax2.fill_between(line12[:,0],line12[:,1],line22[:,1],facecolor='red', alpha=0.5, label='EPD ratio = 0.8')	
 	#ax1.grid(linestyle='--', linewidth=0.5)
 	#ax1.set_xlabel('signal efficiency')
 	#ax1.set_ylabel('background rejection')
@@ -121,7 +125,6 @@ def compare_bkgrej(seed_loc):
 	ax2.set_xlabel('pixel per lens')
 	ax2.set_xscale('log')
 	ax2.set_ylabel('bkg rejection at 0.8 signal efficiency')
-	#ax3.set_ylabel('geometrical efficiency',color='red')
 	#ax1.axis('equal')
 	#ax1.legend()
 	ax2.legend()
@@ -134,7 +137,7 @@ if __name__ == '__main__':
         args = parser.parse_args()
         path = args.path
 	if path == 'compare':
-		compare_bkgrej(['r0-1','r3-4'])
+		compare_bkgrej(['r0-1_2','r3-4_2'])
 	else:
 		path = path + seed_loc
 		plot_cl(path)
