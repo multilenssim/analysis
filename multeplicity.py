@@ -2,7 +2,6 @@ import iter_analysis as ia
 import h5py,glob,argparse
 import numpy as np
 
-
 def clusterize(fname, ev):
 	lb = []
 	from sklearn.cluster import DBSCAN

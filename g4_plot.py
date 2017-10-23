@@ -71,7 +71,7 @@ def plot_cl(path):
 def compare_bkgrej(seed_loc):
 	line11,line12,line21,line22 = [],[],[],[]
 	spl = 2
-	energy = 2
+	EPDR_flag = False
 	#f1, ax1 = plt.subplots()
 	#f2, ax2 = plt.subplots()
 	#ax3 = ax2.twinx()
@@ -79,8 +79,7 @@ def compare_bkgrej(seed_loc):
 	for sl in seed_loc:
 		for root, _, files in os.walk('/farmshare/user_data/jdalmass/'):
 		    for fl in files:
-        		if fl.endswith(sl+'electron-gammac2') and read_conf(root)['lens_system_name'] == 'Sam1' and root[35] == 'k':
-				EPDR_flag = False
+        		if fl.endswith(sl+'electron-gammac2') and read_conf(root)['lens_system_name'] == 'Sam1' and root[35] == 'M':
         	     		data = np.loadtxt(os.path.join(root, fl))
 			        c_sgn = data[0]
 			        c_bkg = data[1]

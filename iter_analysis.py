@@ -128,8 +128,8 @@ if __name__ == '__main__':
 	max_val = 2000
 	bin_width = 10
 	n_bin = max_val/bin_width
-	step = 5
-	sample = 60
+	step = 2
+	sample = 250
 	sgm = True
 	outlier = False
 	bn_arr = np.linspace(0,max_val,n_bin)
@@ -145,6 +145,6 @@ if __name__ == '__main__':
 		for spt_c2 in np.split(c2_bkg,step):
 			f_bin_c2 = np.amax([c2_sgn,spt_c2])
 			bin_c2 = np.linspace(0,f_bin_c2,200)
-			b = find_cl(np.cumsum(make_hist(bin_c2,c2_sgn)),np.cumsum(make_hist(bin_c2,spt_c2)),0.95)
+			b = find_cl(np.cumsum(make_hist(bin_c2,spt_c2)),np.cumsum(make_hist(bin_c2,c2_sgn)),0.2)
 			val_c2.append(b)
 	np.savetxt(path+'datapoints',val_c2)
