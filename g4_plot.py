@@ -72,6 +72,7 @@ def compare_bkgrej(seed_loc):
 	line11,line12,line21,line22 = [],[],[],[]
 	spl = 2
 	EPDR_flag = False
+	ext_rad_flag = False
 	#f1, ax1 = plt.subplots()
 	#f2, ax2 = plt.subplots()
 	#ax3 = ax2.twinx()
@@ -79,7 +80,7 @@ def compare_bkgrej(seed_loc):
 	for sl in seed_loc:
 		for root, _, files in os.walk('/farmshare/user_data/jdalmass/'):
 		    for fl in files:
-        		if fl.endswith(sl+'electron-gammac2') and read_conf(root)['lens_system_name'] == 'Sam1' and root[35] == 'M':
+        		if fl.endswith(sl+'electron-gammac2') and read_conf(root)['lens_system_name'] == 'Sam1' and root[35] == 'k':
         	     		data = np.loadtxt(os.path.join(root, fl))
 			        c_sgn = data[0]
 			        c_bkg = data[1]
@@ -101,6 +102,7 @@ def compare_bkgrej(seed_loc):
 					#ax1.plot(e_hist,g_hist,label=root.split('/')[4]+', base lenses: %i'%n)
                                 	line12.append([px_per_lens, av_conf_lev])
                        		if read_conf(root)['EPD_ratio'] == 1.0 and sl[:4] == 'r3-4':
+					ext_rad_flag = True
                         	        line21.append([px_per_lens, av_conf_lev])
                         	if read_conf(root)['EPD_ratio'] == 0.8 and sl[:4] == 'r3-4':
                         	        line22.append([px_per_lens, av_conf_lev])
@@ -110,17 +112,18 @@ def compare_bkgrej(seed_loc):
 	line21 = np.asarray(sorted(line21,key=lambda x: x[0]))
 	line22 = np.asarray(sorted(line22,key=lambda x: x[0]))
 	ax2.plot(line11[:,0],line11[:,1],linestyle='-',color='green')
-	ax2.plot(line21[:,0],line21[:,1],linestyle=':',color='green')
-	ax2.fill_between(line11[:,0],line11[:,1],line21[:,1],facecolor='green',alpha=0.5, label='EPD ratio = 1.0')
 	if EPDR_flag:
 		ax2.plot(line12[:,0],line12[:,1],linestyle='-',color='red')
 		ax2.plot(line22[:,0],line22[:,1],linestyle=':',color='red')
-		ax2.fill_between(line12[:,0],line12[:,1],line22[:,1],facecolor='red', alpha=0.5, label='EPD ratio = 0.8')	
+		ax2.fill_between(line12[:,0],line12[:,1],line22[:,1],facecolor='red', alpha=0.5, label='EPD ratio = 0.8')
+	if ext_rad_flag:
+		ax2.plot(line21[:,0],line21[:,1],linestyle=':',color='green')
+		ax2.fill_between(line11[:,0],line11[:,1],line21[:,1],facecolor='green',alpha=0.5, label='EPD ratio = 1.0')
 	#ax1.grid(linestyle='--', linewidth=0.5)
 	#ax1.set_xlabel('signal efficiency')
 	#ax1.set_ylabel('background rejection')
 	#ax1.set_title('comparison of different configuration')
-	ax2.set_title('comparison of different configuration')
+	ax2.set_title('comparison of different configuration of 10k pixel detector')
 	ax2.set_xlabel('pixel per lens')
 	ax2.set_xscale('log')
 	ax2.set_ylabel('bkg rejection at 0.8 signal efficiency')

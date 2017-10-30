@@ -90,7 +90,7 @@ def track_util(f_name,ev,tag):
 	i_idx = 0
 	with h5py.File(f_name,'r') as f:
 		for i in xrange(ev):
-			f_idx = f['idx'][i]
+			f_idx = int(f['idx'][i])
 			hit_pos = f['coord'][0,i_idx:f_idx,:]
 			means = f['coord'][1,i_idx:f_idx,:]
 			sigmas = f['sigma'][i_idx:f_idx]
@@ -145,6 +145,6 @@ if __name__ == '__main__':
 		for spt_c2 in np.split(c2_bkg,step):
 			f_bin_c2 = np.amax([c2_sgn,spt_c2])
 			bin_c2 = np.linspace(0,f_bin_c2,200)
-			b = find_cl(np.cumsum(make_hist(bin_c2,spt_c2)),np.cumsum(make_hist(bin_c2,c2_sgn)),0.2)
+			b = find_cl(1-np.cumsum(make_hist(bin_c2,spt_c2)),np.cumsum(make_hist(bin_c2,c2_sgn)),0.2)
 			val_c2.append(b)
 	np.savetxt(path+'datapoints',val_c2)

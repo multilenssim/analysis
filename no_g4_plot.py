@@ -1,34 +1,32 @@
-import glob, re, argparse, pickle
+import glob, argparse, pickle
 import matplotlib.pyplot as plt
 import numpy as np
     
 
 if __name__ == '__main__':
 	parser = argparse.ArgumentParser()
-	parser.add_argument('path', help='select path-to-file with seed location')
+	parser.add_argument('se', help='seed location and energy')
 	args = parser.parse_args()
-	path = args.path
+	se = args.se
 	distance = []
-	for fname in sorted(glob.glob(path+'*cm.h5')):
-		rgx = re.compile(r'\d+')
-		distance.append(int(rgx.findall(fname)[4]))
+	path_file = ['/farmshare/user_data/jdalmass/%s/%s'%(cfg,se) for cfg in ['Sam1_K6_10','Sam1_M10_10']]
+	for fname in sorted(glob.glob(path_file[0]+'*cm.h5')):
+		dst = fname.split('/')[-1][12:]
+		distance.append(int(dst[:-5]))
 	lg = len(distance)
-	data = np.loadtxt(path+'datapoints')
-	a_lg = data.shape[1]
-	#val_avg = data[0]
-	val_c2 = data[0]
-	#plt.errorbar(distance,np.mean(np.reshape(val_avg,(lg,a_lg/lg)),axis=1),yerr=np.std(np.reshape(val_avg,(lg,a_lg/lg)),axis=1),fmt='v',label='weighted average')
-	plt.errorbar(distance,np.mean(np.reshape(val_c2,(lg,a_lg/lg)),axis=1),yerr=np.std(np.reshape(val_c2,(lg,a_lg/lg)),axis=1),fmt='^',label='$\chi^2$')
+	first = True
+	lab = '100k'
+	for path in path_file:
+		val_c2 = np.loadtxt(path+'datapoints')
+		val_c2 = np.asarray((val_c2[::2],val_c2[1::2]))
+		plt.errorbar(distance,np.mean(val_c2,axis=0),yerr=np.std(val_c2,axis=0),fmt='^',label='%s'%lab)
+		if first:
+			lab = '1M'
+		first = False
 	plt.xlabel('relative distance [cm]')
-	plt.ylabel('signal efficiency at 95% background rejection')
-	plt.title(fname.split('/')[4]+' events seeded in 1m radius sph.')
+	plt.ylabel('bkg rej at 80% of sgn eff')
+	plt.title('$\chi^2$ performance with event seeded in %s meter shell'%path.split('/')[-1][1:4])
 	plt.legend(loc='upper left')
-	plt.xlim(0,72)
+	plt.xlim(0,48)
 	plt.ylim(-0.1,1.1)
 	plt.show()
-
-
-
-#'Sam1_1'
-#'Jiani3_4'
-#'Jiani3_2'
