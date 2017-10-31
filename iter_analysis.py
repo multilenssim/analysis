@@ -7,6 +7,54 @@ import sys
 from numba import jit
 import time
 
+from Queue import Queue
+from threading import Thread
+import multiprocessing
+import os
+import line_profiler
+
+# See: https://www.metachris.com/2016/04/python-threadpool/
+# And: https://stackoverflow.com/questions/3033952/threading-pool-similar-to-the-multiprocessing-pool/7257510#7257510 [Copied this one]
+class Worker(Thread):
+	"""Thread executing tasks from a given tasks queue"""
+	def __init__(self, tasks):
+		Thread.__init__(self)
+		self.tasks = tasks
+		self.daemon = True
+		self.start()
+
+	def run(self):
+		while True:
+			func, args, kargs = self.tasks.get()
+			try:
+				func(*args, **kargs)
+			except Exception, e:
+				print e
+			finally:
+				self.tasks.task_done()
+
+class ThreadPool:
+	"""Pool of threads consuming tasks from a queue"""
+	def __init__(self, num_threads):
+		self.tasks = Queue(num_threads)
+		for _ in range(num_threads): Worker(self.tasks)
+
+	def add_task(self, func, *args, **kargs):
+		"""Add a task to the queue"""
+		self.tasks.put((func, args, kargs))
+
+	def wait_completion(self):
+		"""Wait for completion of all the tasks in the queue"""
+		self.tasks.join()
+
+@jit(nopython=True)
+def my_any(iterable):
+	for it in iterable:
+		if it:
+			return True
+	return False
+
+# Uses a different distance computation for Nan = parallel lines
 def remove_nan(dist,ofst_diff,drct):
 	if np.isnan(dist).any():
 		idx = np.where(np.isnan(dist))[0]
@@ -16,7 +64,8 @@ def remove_nan(dist,ofst_diff,drct):
 		dist[int(idx)] = dist_er
 	return dist
 
-#@jit()
+#@jit(nopython=True)
+@profile
 def syst_solve(drct,r_drct,ofst_diff):
 	s_a = np.einsum('ij,ij->i',drct,drct)
 	s_b = np.einsum('ij,ij->i',r_drct,r_drct)
@@ -24,13 +73,23 @@ def syst_solve(drct,r_drct,ofst_diff):
 	q1 = np.einsum('ij,ij->i',-ofst_diff,drct)
 	q2 = np.einsum('ij,ij->i',-ofst_diff,r_drct)
 	matr = np.stack((np.vstack((s_a,-d_dot)).T,np.vstack((d_dot,-s_b)).T),axis=1)
-	if any(np.linalg.det(matr)==0):
-		matr[np.linalg.det(matr)==0] = np.identity(2)
+	dets = np.linalg.det(matr)
+	if my_any(np.linalg.det(matr) == 0):
+		matr[np.linalg.det(matr) == 0] = np.identity(2)
+
+	'''
+	for it in (dets==0):
+		if it:
+			matr[np.linalg.det(matr)==0] = np.identity(2)
+			break
+	'''
 	qt = np.vstack((q1,q2)).T
 	return np.linalg.solve(matr,qt)
 
 #@jit()
+@profile
 def roll_funct(ofst,drct,sgm,i,half=False,outlier=False):
+	#print('.... Rolling')
 	pt = []
 	if not any(sgm):
 		sgm = np.ones(len(drct))
@@ -51,7 +110,9 @@ def roll_funct(ofst,drct,sgm,i,half=False,outlier=False):
 	dist = np.absolute(np.einsum('ij,ij->i',ofst_diff,norm_d))
 	#dist = remove_nan(dist,ofst_diff,drct)
 	sm = np.stack((sgm,r_sgm),axis=1)
+	#print('...... Solving')
 	multp = syst_solve(drct,r_drct,ofst_diff)
+	#print('...... Solved')
 	multp[np.where(multp==0)] = 1
 	sigmas = np.linalg.norm(np.einsum('ij,ij->ij',sm,multp),axis=1)
 	if outlier:
@@ -61,9 +122,11 @@ def roll_funct(ofst,drct,sgm,i,half=False,outlier=False):
 		idx_arr = np.where(np.linalg.norm(c_point,axis=1)>7000)[0]
 		dist = np.delete(dist,idx_arr)
 		sigmas = np.delete(sigmas,idx_arr)
+	#print('.... Rolled')
 	return dist,sigmas
 
 #@jit()
+@profile
 def track_dist(ofst,drct,sgm=False,outlier=False,dim_len=0):
 	half = ofst.shape[0]/2
 	arr_dist, arr_sgm,plot_test = [], [], []
@@ -100,20 +163,23 @@ def track_util(f_name,ev,tag):
 	ks_par = []
 	i_idx = 0
 	with h5py.File(f_name,'r') as f:
+		print(str(ev) + ' sub events to process')
 		for i in xrange(ev):
 			f_idx = int(f['idx'][i])
 			hit_pos = f['coord'][0,i_idx:f_idx,:]
 			means = f['coord'][1,i_idx:f_idx,:]
 			sigmas = f['sigma'][i_idx:f_idx]
 			i_idx = f_idx
+			#print('Computing distance')
 			tr_dist, er_dist = track_dist(hit_pos,means,sgm=sigmas,outlier=outlier,dim_len=f['r_lens'][()])
+			#print(' .. computed')
 			err_dist = 1./np.asarray(er_dist)
 			if tag == 'avg':
 				ks_par.append(np.average(tr_dist,weights=err_dist))
 			elif tag == 'chi2':
 				ks_par.append(make_hist(bn_arr,tr_dist,c_wgt=err_dist))
-			print(str(time.time() - start))
-			sys.stdout.write('.')
+			print(str('Sub-event ' + str(i) + ' ' + str(time.time() - start)))
+
 	print('File done: ' + f_name)
 	return ks_par
 	
@@ -136,28 +202,38 @@ def find_cl(ss_site,ms_site,cl):
 	ix = np.abs(ms_site-1+cl).argmin()
 	return ss_site[ix]
 
+def compute_distro(dir, filename, step, sample, c2_sgn, n_null):		# These params are a mess - clean up
+	c2_bkg = use_chi2(dir+filename, step * sample, n_null)
+	value_c2 = []
+	for spt_c2 in np.split(c2_bkg, step):
+		f_bin_c2 = np.amax([c2_sgn, spt_c2])
+		bin_c2 = np.linspace(0, f_bin_c2, 200)
+		b = find_cl(1 - np.cumsum(make_hist(bin_c2, spt_c2)), np.cumsum(make_hist(bin_c2, c2_sgn)), 0.2)
+		value_c2.append(b)
+	np.savetxt(dir + 'datapoints'+'-'+ filename, value_c2)
 
 if __name__ == '__main__':
 	max_val = 2000
 	bin_width = 10
 	n_bin = max_val/bin_width
 	step = 2
-	sample = 250
+	sample = 2  #250
 	sgm = True
 	outlier = False
 	bn_arr = np.linspace(0,max_val,n_bin)
-        parser = argparse.ArgumentParser()
-        parser.add_argument('path', help='insert path-to-file with seed location')
-        args = parser.parse_args()
-        path = args.path
-	ssite = path+'s-site.h5'
+	parser = argparse.ArgumentParser()
+	parser.add_argument('path', help='insert path-to-file with seed location')
+	args = parser.parse_args()
+	_path = args.path
+	ssite = _path+'s-site.h5'
 	n_null,c2_sgn = use_chi2(ssite,sample,None)
 	val_avg,val_c2 = [],[]
-	for fname in sorted(glob.glob(path+'*cm.h5')):
-		c2_bkg = use_chi2(fname,step*sample,n_null)
-		for spt_c2 in np.split(c2_bkg,step):
-			f_bin_c2 = np.amax([c2_sgn,spt_c2])
-			bin_c2 = np.linspace(0,f_bin_c2,200)
-			b = find_cl(1-np.cumsum(make_hist(bin_c2,spt_c2)),np.cumsum(make_hist(bin_c2,c2_sgn)),0.2)
-			val_c2.append(b)
-	np.savetxt(path+'datapoints',val_c2)
+
+	pool = ThreadPool(multiprocessing.cpu_count())
+	for _fname in sorted(glob.glob(_path+'*cm.h5')):
+		filepath = os.path.normpath(_fname)
+		filename = os.path.basename(filepath)
+		dir = os.path.dirname(filepath) + '/'
+		compute_distro(dir, filename, step, sample, c2_sgn, n_null)
+		#pool.add_task(compute_distro, dir, filename, step, sample, c2_sgn, n_null)
+	pool.wait_completion()
