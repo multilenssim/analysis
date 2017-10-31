@@ -3,13 +3,20 @@ import matplotlib.pyplot as plt
 import h5py, glob, argparse
 import numpy as np
 
+import sys
+from numba import jit
+import time
 
 def remove_nan(dist,ofst_diff,drct):
 	if np.isnan(dist).any():
 		idx = np.where(np.isnan(dist))[0]
-		dist[idx] = np.absolute(np.cross(ofst_diff[idx],drct[idx]))/np.linalg.norm(drct[idx],axis=1).reshape(-1,1)
+		cross = np.cross(ofst_diff[idx],drct[idx])
+		norm = np.linalg.norm(drct[idx],axis=1).reshape(-1,1)
+		dist_er = cross / norm
+		dist[int(idx)] = dist_er
 	return dist
 
+#@jit()
 def syst_solve(drct,r_drct,ofst_diff):
 	s_a = np.einsum('ij,ij->i',drct,drct)
 	s_b = np.einsum('ij,ij->i',r_drct,r_drct)
@@ -22,6 +29,7 @@ def syst_solve(drct,r_drct,ofst_diff):
 	qt = np.vstack((q1,q2)).T
 	return np.linalg.solve(matr,qt)
 
+#@jit()
 def roll_funct(ofst,drct,sgm,i,half=False,outlier=False):
 	pt = []
 	if not any(sgm):
@@ -41,7 +49,7 @@ def roll_funct(ofst,drct,sgm,i,half=False,outlier=False):
 	b_drct = np.cross(drct,r_drct)
 	norm_d = b_drct/np.linalg.norm(b_drct,axis=1).reshape(-1,1)
 	dist = np.absolute(np.einsum('ij,ij->i',ofst_diff,norm_d))
-	dist = remove_nan(dist,ofst_diff,drct)
+	#dist = remove_nan(dist,ofst_diff,drct)
 	sm = np.stack((sgm,r_sgm),axis=1)
 	multp = syst_solve(drct,r_drct,ofst_diff)
 	multp[np.where(multp==0)] = 1
@@ -55,6 +63,7 @@ def roll_funct(ofst,drct,sgm,i,half=False,outlier=False):
 		sigmas = np.delete(sigmas,idx_arr)
 	return dist,sigmas
 
+#@jit()
 def track_dist(ofst,drct,sgm=False,outlier=False,dim_len=0):
 	half = ofst.shape[0]/2
 	arr_dist, arr_sgm,plot_test = [], [], []
@@ -73,7 +82,7 @@ def track_dist(ofst,drct,sgm=False,outlier=False,dim_len=0):
 		return arr_dist
 
 def make_hist(bn_arr,arr,c_wgt=None,norm=True):
-	if c_wgt == None:
+	if c_wgt is None:
 		c_wgt = np.ones(len(arr))
 	wgt = []
 	np_double = np.asarray(arr)
@@ -86,6 +95,8 @@ def make_hist(bn_arr,arr,c_wgt=None,norm=True):
 		return np.asarray(wgt)
 
 def track_util(f_name,ev,tag):
+	print('File start: ' + f_name)
+	start = time.time()
 	ks_par = []
 	i_idx = 0
 	with h5py.File(f_name,'r') as f:
@@ -101,7 +112,9 @@ def track_util(f_name,ev,tag):
 				ks_par.append(np.average(tr_dist,weights=err_dist))
 			elif tag == 'chi2':
 				ks_par.append(make_hist(bn_arr,tr_dist,c_wgt=err_dist))
-		print f_name
+			print(str(time.time() - start))
+			sys.stdout.write('.')
+	print('File done: ' + f_name)
 	return ks_par
 	
 def chi2(bkg_hist,chi2h):
