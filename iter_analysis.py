@@ -64,8 +64,17 @@ def remove_nan(dist,ofst_diff,drct):
 		dist[int(idx)] = dist_er
 	return dist
 
-#@jit(nopython=True)
-@profile
+#@jit(nopython=True, nogil=True)		# Numba can only solve 2-D arrays
+def solver(matrix, qt):
+	return np.linalg.solve(matrix,qt)
+
+@jit(nopython=True, nogil=True)		# Jit performance is a little worse - 15 secs - non jit is horrendous - 10x worse!!!
+def zerodet(matrix):
+	return np.linalg.det(matrix) == 0
+
+# Baseline perf is about 6-8 seconds
+#@profile
+#@jit()
 def syst_solve(drct,r_drct,ofst_diff):
 	s_a = np.einsum('ij,ij->i',drct,drct)
 	s_b = np.einsum('ij,ij->i',r_drct,r_drct)
@@ -73,21 +82,29 @@ def syst_solve(drct,r_drct,ofst_diff):
 	q1 = np.einsum('ij,ij->i',-ofst_diff,drct)
 	q2 = np.einsum('ij,ij->i',-ofst_diff,r_drct)
 	matr = np.stack((np.vstack((s_a,-d_dot)).T,np.vstack((d_dot,-s_b)).T),axis=1)
-	dets = np.linalg.det(matr)
-	if my_any(np.linalg.det(matr) == 0):
+	'''
+	for index, submat in enumerate(matr):
+		if zerodet(submat):
+		#if np.linalg.det(submat) == 0:
+			matr[index] = np.identity(2)
+	# det_replacer(matr)
+	'''
+
+	# This is the baseline - seems like it computes the all the determinants twice??
+	if any(np.linalg.det(matr) == 0):
 		matr[np.linalg.det(matr) == 0] = np.identity(2)
 
 	'''
+	dets = np.linalg.det(matr)
 	for it in (dets==0):
-		if it:
 			matr[np.linalg.det(matr)==0] = np.identity(2)
 			break
 	'''
 	qt = np.vstack((q1,q2)).T
-	return np.linalg.solve(matr,qt)
+	return solver(matr,qt)
 
 #@jit()
-@profile
+#@profile
 def roll_funct(ofst,drct,sgm,i,half=False,outlier=False):
 	#print('.... Rolling')
 	pt = []
@@ -126,7 +143,7 @@ def roll_funct(ofst,drct,sgm,i,half=False,outlier=False):
 	return dist,sigmas
 
 #@jit()
-@profile
+#@profile
 def track_dist(ofst,drct,sgm=False,outlier=False,dim_len=0):
 	half = ofst.shape[0]/2
 	arr_dist, arr_sgm,plot_test = [], [], []
