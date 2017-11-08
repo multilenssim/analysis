@@ -39,27 +39,29 @@ def plot_cluster():
 
 def pair_tracks(fname, i_idx, f_idx):
 	print("pair_tracks parameters: " + fname + ' ' + str(i_idx) + ' ' + str(f_idx))
-	with h5py.File(fname, 'r') as f:		# Expensive to open this each time, but I think it's the only way with processes
-		hit_pos = f['coord'][0, i_idx:f_idx, :]
-		means = f['coord'][1, i_idx:f_idx, :]
-		sigmas = f['sigma'][i_idx:f_idx]
-		tr_dist, er_dist = ia.track_dist(hit_pos, means, sigmas, False, f['r_lens'][()])
-		err_dist = 1. / np.asarray(er_dist)
+	try:
+		with h5py.File(fname, 'r') as f:		# Expensive to open this each time, but I think it's the only way with processes
+			hit_pos = f['coord'][0, i_idx:f_idx, :]
+			means = f['coord'][1, i_idx:f_idx, :]
+			sigmas = f['sigma'][i_idx:f_idx]
+			tr_dist, er_dist = ia.track_dist(hit_pos, means, sigmas, False, f['r_lens'][()])
+			err_dist = 1. / np.asarray(er_dist)
+	except Exception as e:
+		print('Exception pairing tracks: ' + str(e))
 	return ia.make_hist(bn_arr, tr_dist, err_dist)
 
 
-def track_hist(fname, ev, pool):
-	indices = []
+def track_hist(fname, ev, pool, result_list):
 	with h5py.File(fname, 'r') as f:
-		indices = f['idx_tr']
+		indices = f['idx_tr'][()]  # See: https://stackoverflow.com/questions/10274476/how-to-export-hdf5-file-to-numpy-using-h5py
 	start = time.time()
 	ks_par = []
 	for ix in xrange(ev):
 		i_idx = 0 if ix == 0 else indices[ix-1]
-		pool.apply_async(pair_tracks, (fname, i_idx, indices[ix]))
+		result = pool.apply_async(pair_tracks, (fname, i_idx, indices[ix]))
+		result_list.append(result)
 		# ks_par.append(hist)
-		print(str('Sub-event ' + str(ix) + ' ' + str(time.time() - start)))
-	return ks_par
+	return ks_par		# This is now unused
 
 
 if __name__=='__main__':
@@ -67,22 +69,32 @@ if __name__=='__main__':
 	parser.add_argument('path', help='insert path-to-file with seed location')
 	args = parser.parse_args()
 	path = args.path
-	n_ev = 2 # 500
+	n_ev = 5 # 500
 	max_val = 2000
 	bin_width = 10
 	n_bin = max_val/bin_width
 	bn_arr = np.linspace(0,max_val,n_bin)
 
-	pool = ThreadPool(multiprocessing.cpu_count())
+	pool = Pool(multiprocessing.cpu_count())
+	results_e = []
+	results_gamma = []
 	for fname in sorted(glob.glob(path + '*sim.h5')):
 		print fname
-		chi2_arr = track_hist(fname, n_ev, pool)
-		'''
-		if fname[len(path)] == 'e':
-			n_null = [np.mean(chi2_arr, axis=0), np.std(chi2_arr, axis=0)]
-			e_hist = ia.chi2(n_null, chi2_arr)
-		elif fname[len(path)] == 'g':
-			g_hist = ia.chi2(n_null, chi2_arr)
-	np.savetxt(path + 'electron-gammac2', (e_hist, g_hist))
-	'''
+		result_list = results_e if fname[len(path)] == 'e' else results_gamma
+		chi2_arr = track_hist(fname, n_ev, pool, result_list)
+	e_chi = []
+	gamma_chi = []
+	for result in results_e:
+		chi2_arr = result.get()
+		e_chi.append(chi2_arr)
+	for result in results_gamma:
+		chi2_arr = result.get()
+		gamma_chi.append(chi2_arr)
 
+	n_null = [np.mean(e_chi, axis=0), np.std(e_chi, axis=0)]
+	e_hist = ia.chi2(n_null, e_chi)
+	g_hist = ia.chi2(n_null, gamma_chi)
+	np.savetxt(path + 'electron-gammac2', (e_hist, g_hist))
+
+	pool.close()
+	pool.join()
