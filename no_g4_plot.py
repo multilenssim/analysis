@@ -9,7 +9,7 @@ if __name__ == '__main__':
 	args = parser.parse_args()
 	se = args.se
 	distance = []
-	path_file = ['/farmshare/user_data/jdalmass/%s/%s'%(cfg,se) for cfg in ['Sam1_K6_10','Sam1_M10_10']]
+	path_file = ['/farmshare/user_data/jdalmass/%s/%s'%(cfg,se) for cfg in ['cfSam1_K6_10','cfSam1_M10_10']]
 	for fname in sorted(glob.glob(path_file[0]+'*cm.h5')):
 		dst = fname.split('/')[-1][12:]
 		distance.append(int(dst[:-5]))

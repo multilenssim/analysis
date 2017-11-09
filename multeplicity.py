@@ -66,4 +66,5 @@ if __name__=='__main__':
 			e_hist = ia.chi2(n_null,chi2_arr)
 		elif fname[len(path)] == 'g':
                         g_hist = ia.chi2(n_null,chi2_arr)
+	path = os.path.join(os.path.split(path)[0][:-8],os.path.split(path)[1])
 	np.savetxt(path+'electron-gammac2',(e_hist,g_hist))

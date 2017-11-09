@@ -147,4 +147,5 @@ if __name__ == '__main__':
 			bin_c2 = np.linspace(0,f_bin_c2,200)
 			b = find_cl(1-np.cumsum(make_hist(bin_c2,spt_c2)),np.cumsum(make_hist(bin_c2,c2_sgn)),0.2)
 			val_c2.append(b)
+	path = os.path.join(os.path.split(path)[0][:-8],os.path.split(path)[1])
 	np.savetxt(path+'datapoints',val_c2)
