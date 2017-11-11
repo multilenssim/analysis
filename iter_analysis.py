@@ -226,7 +226,7 @@ def compute_distro(dir, filename, step, sample, c2_sgn, n_null):		# These params
 		f_bin_c2 = np.amax([c2_sgn, spt_c2])
 		bin_c2 = np.linspace(0, f_bin_c2, 200)
 		b = find_cl(1 - np.cumsum(make_hist(bin_c2, spt_c2)), np.cumsum(make_hist(bin_c2, c2_sgn)), 0.2)
-		value_c2.append(b)
+		val_c2.append(b)
 	np.savetxt(dir + 'datapoints'+'-'+ filename, value_c2)
 
 if __name__ == '__main__':
