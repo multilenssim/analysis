@@ -254,3 +254,15 @@ if __name__ == '__main__':
 		compute_distro(dir, filename, step, sample, c2_sgn, n_null)
 		#pool.add_task(compute_distro, dir, filename, step, sample, c2_sgn, n_null)
 	pool.wait_completion()
+
+        ''' Jacopo's (changed) code:
+	for fname in sorted(glob.glob(path+'*cm.h5')):
+		c2_bkg = use_chi2(fname,step*sample,n_null)
+		for spt_c2 in np.split(c2_bkg,step):
+			f_bin_c2 = np.amax([c2_sgn,spt_c2])
+			bin_c2 = np.linspace(0,f_bin_c2,200)
+			b = find_cl(1-np.cumsum(make_hist(bin_c2,spt_c2)),np.cumsum(make_hist(bin_c2,c2_sgn)),0.2)
+			val_c2.append(b)
+	path = os.path.join(os.path.split(path)[0][:-8],os.path.split(path)[1])
+	np.savetxt(path+'datapoints',val_c2)
+        '''
