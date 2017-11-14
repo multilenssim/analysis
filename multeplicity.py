@@ -1,6 +1,7 @@
 import iter_analysis as ia
 import h5py,glob,argparse
 import numpy as np
+import os
 
 def clusterize(fname, ev):
 	lb = []
@@ -53,7 +54,7 @@ if __name__=='__main__':
 	parser.add_argument('path', help='insert path-to-file with seed location')
 	args = parser.parse_args()
 	path = args.path
-	n_ev = 5
+	n_ev = 50
 	max_val = 2000
 	bin_width = 10
 	n_bin = max_val/bin_width

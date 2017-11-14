@@ -7,10 +7,11 @@ import sys
 from numba import jit
 import time
 
-from Queue import Queue
-from Queue import Empty
-from threading import Thread
-import multiprocessing
+#from threading import Thread
+import multiprocessing		# Just for cpu_count() currently
+from multiprocessing import Process
+from multiprocessing import Queue
+from multiprocessing import JoinableQueue
 import os
 import line_profiler
 
@@ -20,10 +21,10 @@ import line_profiler
 
 # Using built in thread pools:  https://stackoverflow.com/questions/26104512/how-to-obtain-the-results-from-a-pool-of-threads-in-python
 
-class Worker(Thread):
+class Worker(Process):
 	"""Thread executing tasks from a given tasks queue"""
 	def __init__(self, tasks, results):
-		Thread.__init__(self)
+		Process.__init__(self)
 		self.tasks = tasks
 		self.results = results
 		self.daemon = True
@@ -40,12 +41,12 @@ class Worker(Thread):
 			finally:
 				self.tasks.task_done()
 
-class ThreadPool:
+class ProcessPool:
 	"""Pool of threads consuming tasks from a queue"""
-	def __init__(self, num_threads):
-		self.tasks = Queue(num_threads)
+	def __init__(self, num_procs):
+		self.tasks = JoinableQueue(num_procs)		# This is probably not what we want - need to look into multiprocessing more deeply...
 		self.results = Queue()				# Thsi is really a misuse of queues!!  I think
-		for _ in range(num_threads): Worker(self.tasks, self.results)
+		for _ in range(num_procs): Worker(self.tasks, self.results)
 
 	def add_task(self, func, *args, **kargs):
 		"""Add a task to the queue"""
@@ -69,33 +70,22 @@ def my_any(iterable):
 def remove_nan(dist,ofst_diff,drct):
 	if np.isnan(dist).any():
 		idx = np.where(np.isnan(dist))[0]
-		im_05 = np.cross(ofst_diff[idx],drct[idx])
-		im_1 = np.linalg.norm(im_05, axis=1)
-		im_2 = np.linalg.norm(drct[idx],axis=1)
-		im_3 = im_1 / im_2
-		dist[idx] = im_3
-	return dist
-	'''
-	if np.isnan(dist).any():
-		idx = np.where(np.isnan(dist))[0]
 		cross = np.cross(ofst_diff[idx],drct[idx])
 		norm = np.linalg.norm(drct[idx],axis=1).reshape(-1,1)
 		dist_er = cross / norm
 		dist[int(idx)] = dist_er
 	return dist
-	'''
 
-#@jit(nopython=True, nogil=True)		# Numba can only solve 2-D arrays
-def solver(matrix, qt):
-	return np.linalg.solve(matrix,qt)
+def sum_matrices(drct, r_drct, ofst_diff):
+	s_a = np.einsum('ij,ij->i', drct, drct)
+	s_b = np.einsum('ij,ij->i', r_drct, r_drct)
+	d_dot = np.einsum('ij,ij->i', drct, r_drct)
+	q1 = np.einsum('ij,ij->i', -ofst_diff, drct)
+	q2 = np.einsum('ij,ij->i', -ofst_diff, r_drct)
+	return s_a, s_b, d_dot, q1, q2
 
-@jit(nopython=True, nogil=True)		# Jit performance is a little worse - 15 secs - non jit is horrendous - 10x worse!!!
-def zerodet(matrix):
-	return np.linalg.det(matrix) == 0
-
-# Baseline perf is about 6-8 seconds
+#@jit(nopython=True)
 #@profile
-#@jit()
 def syst_solve(drct,r_drct,ofst_diff):
 	s_a = np.einsum('ij,ij->i', drct, drct)
 	s_b = np.einsum('ij,ij->i', r_drct, r_drct)
@@ -103,27 +93,18 @@ def syst_solve(drct,r_drct,ofst_diff):
 	q1 = np.einsum('ij,ij->i', -ofst_diff, drct)
 	q2 = np.einsum('ij,ij->i', -ofst_diff, r_drct)
 	matr = np.stack((np.vstack((s_a,-d_dot)).T,np.vstack((d_dot,-s_b)).T),axis=1)
-	'''
-	for index, submat in enumerate(matr):
-		if zerodet(submat):
-		#if np.linalg.det(submat) == 0:
-			matr[index] = np.identity(2)
-	# det_replacer(matr)
-	'''
-
 	#dets = np.linalg.det(matr)
-	# This is the baseline - seems like it computes the all the determinants twice??
-	if any(np.linalg.det(matr) == 0):
+	if my_any(np.linalg.det(matr) == 0):
 		matr[np.linalg.det(matr) == 0] = np.identity(2)
 
 	'''
-	dets = np.linalg.det(matr)
 	for it in (dets==0):
+		if it:
 			matr[np.linalg.det(matr)==0] = np.identity(2)
 			break
 	'''
 	qt = np.vstack((q1,q2)).T
-	return solver(matr,qt)
+	return np.linalg.solve(matr,qt)
 
 #@jit()
 #@profile
@@ -147,7 +128,7 @@ def roll_funct(ofst,drct,sgm,i,half=False,outlier=False):
 	b_drct = np.cross(drct,r_drct)
 	norm_d = b_drct/np.linalg.norm(b_drct,axis=1).reshape(-1,1)
 	dist = np.absolute(np.einsum('ij,ij->i',ofst_diff,norm_d))
-	dist = remove_nan(dist,ofst_diff,drct)
+	#dist = remove_nan(dist,ofst_diff,drct)
 	sm = np.stack((sgm,r_sgm),axis=1)
 	#print('...... Solving')
 	multp = syst_solve(drct,r_drct,ofst_diff)
@@ -271,31 +252,18 @@ if __name__ == '__main__':
 
 	# See: https://stackoverflow.com/questions/1886090/return-value-from-thread
 	# Not sure adding results to a queue is rally the right thing??  Queues are largely for jabs
-	pool = ThreadPool(multiprocessing.cpu_count())
+	pool = ProcessPool(multiprocessing.cpu_count())
 	results = []
-	threadit = False
+	threadit = True
 	for _fname in sorted(glob.glob(_path+'*cm.h5')):
 		filepath = os.path.normpath(_fname)
 		filename = os.path.basename(filepath)
 		dir = os.path.dirname(filepath) + '/'
-
 		if threadit:
 			pool.add_task(compute_distro, dir, filename, step, sample, c2_sgn, n_null)
 		else:
 			result = compute_distro(dir, filename, step, sample, c2_sgn, n_null)
 			results.append(result)
-	''' Jacopo's (changed) code:
-	for fname in sorted(glob.glob(path+'*cm.h5')):
-		c2_bkg = use_chi2(fname,step*sample,n_null)
-		for spt_c2 in np.split(c2_bkg,step):
-			f_bin_c2 = np.amax([c2_sgn,spt_c2])
-			bin_c2 = np.linspace(0,f_bin_c2,200)
-			b = find_cl(1-np.cumsum(make_hist(bin_c2,spt_c2)),np.cumsum(make_hist(bin_c2,c2_sgn)),0.2)
-			val_c2.append(b)
-	path = os.path.join(os.path.split(path)[0][:-8],os.path.split(path)[1])
-	np.savetxt(path+'datapoints',val_c2)
-	'''
-
 	if threadit:
 		pool.wait_completion()
 		# Results need to be ordered!!
@@ -304,7 +272,7 @@ if __name__ == '__main__':
 			try:
 				result = resultq.get(False)		# Not sure if this is the best way to hack this in
 				results.append(result)
-			except Empty as qe:
+			except Queue.Empty as qe:
 				break		# Is this the best way to deal with queues?
 	np.savetxt(dir + 'datapoints', results)
 
