@@ -8,7 +8,7 @@ def tick_function(X):
 	V = np.asarray(map(str,100000/X.astype(int)))
 	V[11::2] = ''
 	return V
-
+g4_plot.set_style()
 ax1 = plt.subplot()
 ax2 = ax1.twiny()
 ax1.set_xscale('log')
@@ -25,7 +25,7 @@ for sl in seed_loc:
 		if read_conf['EPD_ratio'] == 0.5:
 			continue
 		try:
-			with h5py.File(cfg+sl+'e-_sim.h5','r') as f:
+			with h5py.File('%sraw_data/%se-_sim.h5'%(cfg,sl),'r') as f:
 				e_index = np.diff(f['idx_tr'][:])
 				tot_index = np.diff(f['idx_depo'][:])
 				ax1.errorbar(px_per_lens,np.mean(e_index/np.mean(tot_index)),np.std(e_index/np.mean(tot_index))/np.sqrt(len(e_index)),color='black')#fmt='o'
@@ -52,8 +52,8 @@ ax1.plot(line22[:,0],line22[:,1],linestyle=':',color='red')
 #ax2.plot(line11[:,0],line11[:,2]*np.square(0.8),linestyle=':',linewidth=0.5,color='blue',label='EPD ratio = 0.8')
 ax1.fill_between(line11[:,0],line11[:,1],line21[:,1],facecolor='green',alpha=0.5, label='$R_{pupil}/R_{lens}$ = 1.0')
 ax1.fill_between(line12[:,0],line12[:,1],line22[:,1],facecolor='red', alpha=0.5, label='$R_{pupil}/R_{lens}$ = 0.8')
-#ax1.set_ylim([0,0.25])
-ax2.set_xlabel('Total number of lenses')
+ax1.set_ylim([0,0.25])
+ax2.set_xlabel('Total number of lens assemblies')
 ax1.grid(True)
 ax1Ticks = ax1.get_xticks(minor=True)   
 ax2Ticks = ax1Ticks
@@ -61,8 +61,7 @@ ax2.set_xticks(ax2Ticks)
 ax2.set_xbound(ax1.get_xbound())
 ax2.set_xticklabels(tick_function(ax2Ticks),minor=True)
 #ax2.set_ylabel('geometrical efficiency',color='blue')
-ax1.set_ylabel('collection efficiency',color='black')
-ax1.set_xlabel('pixel per lens')
-ax1.legend()
-#ax2.legend(loc='upper right')
+ax1.set_ylabel('Collection efficiency',color='black')
+ax1.set_xlabel('Pixels per lens assembly')
+ax1.legend(loc='upper right')
 plt.show()
