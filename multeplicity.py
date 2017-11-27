@@ -2,6 +2,7 @@ import iter_analysis as ia
 import h5py,glob,argparse
 import numpy as np
 import os
+import time
 
 def clusterize(fname, ev):
 	lb = []
@@ -43,7 +44,7 @@ def track_hist(fname,ev):
 			means = f['coord'][1,i_idx:f_idx,:]
 			sigmas = f['sigma'][i_idx:f_idx]
                         i_idx = f_idx
-			tr_dist, er_dist = ia.track_dist(hit_pos, means, sigmas, False, f['r_lens'][()])
+			tr_dist, er_dist = ia.track_dist_threaded(hit_pos, means, sigmas, False, f['r_lens'][()])
 			err_dist = 1./np.asarray(er_dist)
 			ks_par.append(ia.make_hist(bn_arr, tr_dist, err_dist))
 		return ks_par
@@ -59,6 +60,7 @@ if __name__=='__main__':
 	bin_width = 10
 	n_bin = max_val/bin_width
 	bn_arr = np.linspace(0,max_val,n_bin)
+	start_time = time.time()
 	for fname in sorted(glob.glob(path+'*sim.h5')):
 		print fname
 		chi2_arr = track_hist(fname,n_ev)
@@ -67,5 +69,6 @@ if __name__=='__main__':
 			e_hist = ia.chi2(n_null,chi2_arr)
 		elif fname[len(path)] == 'g':
                         g_hist = ia.chi2(n_null,chi2_arr)
-	path = os.path.join(os.path.split(path)[0][:-8],os.path.split(path)[1])
-	np.savetxt(path+'electron-gammac2',(e_hist,g_hist))
+	new_path = os.path.join(os.path.split(path)[0],os.path.split(path)[1])
+	np.savetxt(new_path+'-electron-gammac2',(e_hist,g_hist))
+	print('Time: ' + str(time.time() - start_time))
