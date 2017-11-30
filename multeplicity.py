@@ -4,36 +4,6 @@ import numpy as np
 import os
 import time
 
-def clusterize(fname, ev):
-	lb = []
-	from sklearn.cluster import DBSCAN
-	with h5py.File(fname,'r') as f:
-		i_idx = 0
-		for ix in xrange(ev):
-			f_idx = f['idx_depo'][ix]
-			vert = f['en_depo'][i_idx:f_idx,:]
-			i_idx = f_idx
-			db = DBSCAN(eps=3, min_samples=10).fit(vert)
-			labels =  db.labels_
-			labels = labels[labels!=-1]
-			lb.append(max(labels))
-	return lb
-
-def plot_cluster():
-	from mpl_toolkits.mplot3d import Axes3D
-	import matplotlib.pyplot as plt
-	fig = plt.figure()
-	ax = fig.gca(projection='3d')
-	ax.plot(vert[:,0],vert[:,1],vert[:,2],'.',color='red')
-	plt.show()
-	plt.close()
-	fig = plt.figure()
-	ax = fig.gca(projection='3d')
-	colors = [plt.cm.Spectral(each) for each in np.linspace(0, 1, len(set(labels)))]
-	for lb,col in zip(set(labels),colors):
-		ax.plot(vert[labels==lb][:,0],vert[labels==lb][:,1],vert[labels==lb][:,2],'.',markerfacecolor=tuple(col))
-	plt.show()
-
 def track_hist(fname,ev):
         with h5py.File(fname,'r') as f:
 		ks_par = []
