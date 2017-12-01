@@ -11,6 +11,9 @@ import multiprocessing
 import os
 #import line_profiler
 
+from multiprocessing.pool import ThreadPool
+from multiprocessing import Pool, TimeoutError
+
 # See: https://www.metachris.com/2016/04/python-threadpool/
 # And: https://stackoverflow.com/questions/3033952/threading-pool-similar-to-the-multiprocessing-pool/7257510#7257510 [Copied this one]
 # And: https://stackoverflow.com/questions/1886090/return-value-from-thread
@@ -67,6 +70,7 @@ def remove_nan(dist,ofst_diff,drct):
 	if np.isnan(dist).any():
 		idx = np.where(np.isnan(dist))[0]
 		im_05 = np.cross(ofst_diff[idx],drct[idx])
+		# print('NaN distance vectors: ' + str(ofst_diff[idx]) + ' ' + str(drct[idx]) + ' ' + str(im_05))
 		im_1 = np.linalg.norm(im_05, axis=1)
 		im_2 = np.linalg.norm(drct[idx],axis=1)
 		im_3 = im_1 / im_2
@@ -188,6 +192,39 @@ def track_dist(ofst,drct,sgm=False,outlier=False,dim_len=0):
 		arr_dist.extend(dist)
 		arr_sgm.extend(sigmas)
 		print(time.time() - start_time)
+	if ofst.shape[0] & 0x1:
+		pass						#condition removed if degeneracy is kept
+	else:
+		dist,sigmas = roll_funct(ofst,drct,sgm,half,half=False,outlier=outlier)
+		arr_dist.extend(dist)
+		arr_sgm.extend(sigmas)
+	if any(sgm):
+		return arr_dist,(np.asarray(arr_sgm)+dim_len)
+	else:
+		return arr_dist
+
+def track_dist_threaded(ofst,drct,sgm=False,outlier=False,dim_len=0):
+	half = ofst.shape[0]/2
+	arr_dist, arr_sgm,plot_test = [], [], []
+
+	pool = Pool(multiprocessing.cpu_count())
+	results = []
+	for i in range(1,(ofst.shape[0]-1)/2+1):
+		result = pool.apply_async(roll_funct, (ofst,drct,sgm,i)) # ,half=False,outlier=outlier))
+		results.append(result)
+	childs = multiprocessing.active_children()
+	print('Child count: ' + str(len(childs)))
+	pool.close()
+	childs = multiprocessing.active_children()
+	print('Child count: ' + str(len(childs)))
+	pool.join()
+	childs = multiprocessing.active_children()
+	print('Child count: ' + str(len(childs)))
+	for result in results:
+		result_value = result.get()
+		arr_dist.extend(result_value[0])
+		arr_sgm.extend(result_value[1])
+
 	if ofst.shape[0] & 0x1:
 		pass						#condition removed if degeneracy is kept
 	else:
