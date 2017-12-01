@@ -1,10 +1,7 @@
-import matplotlib.patches as patches
-import matplotlib.pyplot as plt
 import h5py, glob, argparse
 import numpy as np
 
-import sys
-from numba import jit
+#from numba import jit
 import time
 
 from Queue import Queue
@@ -12,7 +9,7 @@ from Queue import Empty
 from threading import Thread
 import multiprocessing
 import os
-import line_profiler
+#import line_profiler
 
 # See: https://www.metachris.com/2016/04/python-threadpool/
 # And: https://stackoverflow.com/questions/3033952/threading-pool-similar-to-the-multiprocessing-pool/7257510#7257510 [Copied this one]
@@ -58,7 +55,7 @@ class ThreadPool:
 		"""Wait for completion of all the tasks in the queue"""
 		self.tasks.join()
 
-@jit(nopython=True)
+#@jit(nopython=True)
 def my_any(iterable):
 	for it in iterable:
 		if it:
@@ -89,7 +86,7 @@ def remove_nan(dist,ofst_diff,drct):
 def solver(matrix, qt):
 	return np.linalg.solve(matrix,qt)
 
-@jit(nopython=True, nogil=True)		# Jit performance is a little worse - 15 secs - non jit is horrendous - 10x worse!!!
+#@jit(nopython=True, nogil=True)		# Jit performance is a little worse - 15 secs - non jit is horrendous - 10x worse!!!
 def zerodet(matrix):
 	return np.linalg.det(matrix) == 0
 
@@ -162,18 +159,37 @@ def roll_funct(ofst,drct,sgm,i,half=False,outlier=False):
 		dist = np.delete(dist,idx_arr)
 		sigmas = np.delete(sigmas,idx_arr)
 	#print('.... Rolled')
+	# KW mods
+	idx = np.where(dist < (sigmas / 5.))
+	relevant_dists = dist[idx]
+	print('Sizes: ' + str(len(ofst)) + ' ' + str(len(dist)) + ' ' + str(len(relevant_dists)))
+	print('Distances: ' + str(relevant_dists))
+	print('Sigmas: ' + str(sigmas[idx]))
 	return dist,sigmas
 
 #@jit()
 #@profile
+# 			tr_dist, er_dist = ia.track_dist(hit_pos, means, sigmas, False, f['r_lens'][()])
+'''
+ofst:	detector hit position matrix
+drct:	detector direction matrix
+sgm:	sigmas
+outlier:	
+dim_len:	lens radius
+'''
 def track_dist(ofst,drct,sgm=False,outlier=False,dim_len=0):
 	half = ofst.shape[0]/2
 	arr_dist, arr_sgm,plot_test = [], [], []
+	count = (ofst.shape[0]-1)/2+1
+	start_time = time.time()
 	for i in range(1,(ofst.shape[0]-1)/2+1):
+		print('Pairing hit: ' + str(i) + ' of ' + str(count))
 		dist,sigmas = roll_funct(ofst,drct,sgm,i,half=False,outlier=outlier)
 		arr_dist.extend(dist)
 		arr_sgm.extend(sigmas)
-	if ofst.shape[0] & 0x1: pass						#condition removed if degeneracy is kept
+		print(time.time() - start_time)
+	if ofst.shape[0] & 0x1:
+		pass						#condition removed if degeneracy is kept
 	else:
 		dist,sigmas = roll_funct(ofst,drct,sgm,half,half=False,outlier=outlier)
 		arr_dist.extend(dist)
