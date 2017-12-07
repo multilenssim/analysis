@@ -166,9 +166,9 @@ def roll_funct(ofst,drct,sgm,i,half=False,outlier=False):
 	# KW mods
 	idx = np.where(dist < (sigmas / 5.))
 	relevant_dists = dist[idx]
-	print('Sizes: ' + str(len(ofst)) + ' ' + str(len(dist)) + ' ' + str(len(relevant_dists)))
-	print('Distances: ' + str(relevant_dists))
-	print('Sigmas: ' + str(sigmas[idx]))
+	#print('Sizes: ' + str(len(ofst)) + ' ' + str(len(dist)) + ' ' + str(len(relevant_dists)))
+	#print('Distances: ' + str(relevant_dists))
+	#print('Sigmas: ' + str(sigmas[idx]))
 	return dist,sigmas
 
 #@jit()
