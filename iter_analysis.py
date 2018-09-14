@@ -5,10 +5,10 @@ import numpy as np
 
 
 def remove_nan(dist,ofst_diff,drct):
-	if np.isnan(dist).any():
-		idx = np.where(np.isnan(dist))[0]
-		dist[idx] = np.absolute(np.cross(ofst_diff[idx],drct[idx]))/np.linalg.norm(drct[idx],axis=1).reshape(-1,1)
-	return dist
+    #if np.isnan(dist).any():
+    idx = np.where(np.isnan(dist))[0]
+    dist[idx] = 0	#np.absolute(np.cross(ofst_diff[idx],drct[idx]))/np.linalg.norm(drct[idx],axis=1).reshape(-1,1)
+    return dist
 
 def syst_solve(drct,r_drct,ofst_diff):
 	s_a = np.einsum('ij,ij->i',drct,drct)
@@ -35,7 +35,7 @@ def roll_funct(ofst,drct,sgm,i,half=False,outlier=False):
 		sgm = sgm[:i]
 		r_ofst = r_ofst[:i]
 		r_drct = r_drct[:i]
-		r_sgm = r_sgm[:i]		
+		r_sgm = r_sgm[:i]
 
 	ofst_diff = ofst - r_ofst
 	b_drct = np.cross(drct,r_drct)
@@ -70,10 +70,10 @@ def track_dist(ofst,drct,sgm=False,outlier=False,dim_len=0):
 	if any(sgm):
 		return arr_dist,(np.asarray(arr_sgm)+dim_len)
 	else:
-		return arr_dist
+		return arr_dist,np.full(len(arr_dist),dim_len)
 
 def make_hist(bn_arr,arr,c_wgt=None,norm=True):
-	if c_wgt == None:
+	if np.array_equal(c_wgt,None):
 		c_wgt = np.ones(len(arr))
 	wgt = []
 	np_double = np.asarray(arr)

@@ -1,23 +1,43 @@
+import h5py, glob, sys, os
+sys.path.insert(0, '/home/jacopo/simulation/')
+
 import matplotlib.pyplot as plt
 import numpy as np
-import h5py, glob
 import g4_plot
+import paths
 
 
-def tick_function(X):
-	V = np.asarray(map(str,100000/X.astype(int)))
-	V[11::2] = ''
-	return V
 g4_plot.set_style()
-ax1 = plt.subplot()
-ax2 = ax1.twiny()
-ax1.set_xscale('log')
-ax2.set_xscale('log')
-seed_loc = ['r0-1_2','r3-4_2']
-n_lens = []
-line11,line12,line21,line22 = [],[],[],[]
+#ax1 = plt.subplot()
+#ax2 = ax1.twiny()
+#ax1.set_xscale('log')
+#ax2.set_xscale('log')
+
+def gather_data(path):
+    fpath = '%sraw_data/'%path
+    flist = sorted(os.listdir(fpath))[::2]
+
+    with h5py.File(fpath+flist[0],'r') as f:
+        e_index = np.diff(f['idx_tr'][:])
+        tot_number = np.mean(np.diff(f['idx_depo'][:]))
+    center_value = np.mean(e_index/tot_number)
+    center_err = np.std(e_index/tot_number)/np.sqrt(len(e_index))
+
+    with h5py.File(fpath+flist[1],'r') as f:
+        e_index = np.diff(f['idx_tr'][:])
+        tot_number = np.mean(np.diff(f['idx_depo'][:]))
+    o_value = np.mean(e_index/tot_number)
+    o_err = np.std(e_index/tot_number)/np.sqrt(len(e_index))
+    return center_value, center_err, o_value, o_err
+
+y_label = 'Collection efficiency'
+g4_plot.compare_bkgrej(gather_data,y_label,[0.0,0.3])
+
+
+
+'''
 for sl in seed_loc:
-	for cfg in sorted(glob.glob('/farmshare/user_data/jdalmass/cfSam1_K*/')):
+    for cfg in sorted(glob.glob('/farmshare/user_data/jdalmass/cfSam1_K*/')):
 		read_conf = g4_plot.read_conf(cfg[:-1])
                 n = read_conf['base']
 		max_diam = read_conf['edge_length']/(read_conf['base']+np.sqrt(3)-1) 
@@ -64,4 +84,4 @@ ax2.set_xticklabels(tick_function(ax2Ticks),minor=True)
 ax1.set_ylabel('Collection efficiency',color='black')
 ax1.set_xlabel('Pixels per lens assembly')
 ax1.legend(loc='upper right')
-plt.show()
+plt.show()'''
