@@ -1,25 +1,32 @@
-import sys, h5py, glob, argparse, pickle, os
+import sys, h5py, glob, argparse, pickle, os, time
 sys.path.insert(0, '/home/jacopo/simulation/')
-
 import iter_analysis as ia
 import numpy as np
 import paths
 
 def track_hist(fname,ev):
-    with h5py.File(fname,'r') as f:
-        ks_par = []
-        i_idx = 0
+    ks_par = []
+    i_idx = 0
 
-        for ix in xrange(ev):
+    for ix in xrange(ev):
+        if ix%50 == 0: print ix
+
+        with h5py.File(fname,'r') as f:
+            start_time = time.time()
             f_idx = f['idx_tr'][ix]
             hit_pos = f['coord'][0,i_idx:f_idx,:]
             means = f['coord'][1,i_idx:f_idx,:]
             sigmas = f['sigma'][i_idx:f_idx]
-            i_idx = f_idx
-            tr_dist, er_dist = ia.track_dist(hit_pos, means, sigmas, False, f['r_lens'][()])
-            err_dist = 1./np.asarray(er_dist)
-            ks_par.append(ia.make_hist(bn_arr, tr_dist, err_dist))
-        return ks_par
+            r_lens = f['r_lens'][()]
+        n_ph = f_idx - i_idx
+        i_idx = f_idx
+        print 'opening the file %.2f with %i photons'%(time.time() - start_time,n_ph)
+        tr_dist, er_dist = ia.new_track_dist(hit_pos, means, sigmas, False, r_lens)
+        start_time = time.time()
+        err_dist = 1./np.asarray(er_dist)
+        ks_par.append(ia.make_hist(bn_arr, tr_dist, err_dist))
+        print 'making the histogram %.2f'%(time.time() - start_time)
+    return ks_par
 
 
 if __name__=='__main__':
@@ -27,7 +34,7 @@ if __name__=='__main__':
     parser.add_argument('key', help='insert the key to the dictonary')
     args = parser.parse_args()
     ix = int(args.key)
-    n_ev = 500
+    n_ev = 300
     max_val = 2000
     bin_width = 10
     n_bin = max_val/bin_width
@@ -60,4 +67,4 @@ if __name__=='__main__':
         else:
             seed = 'r3-4'
 
-        np.savetxt('%s%selectron-gamma_perf_inf_c2'%(paths.get_data_file_path_no_raw(key),seed),(e_hist,g_hist))
+        np.savetxt('%s%selectron-gamma_perf_c2'%(paths.get_data_file_path_no_raw(key),seed),(e_hist,g_hist))
