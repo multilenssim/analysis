@@ -2,6 +2,9 @@ import sys, h5py, glob, argparse, pickle, os, time
 sys.path.insert(0, '/home/jacopo/simulation/')
 import iter_analysis as ia
 import numpy as np
+import psutil
+import gc
+
 import paths
 
 def track_hist(fname,ev):
@@ -20,11 +23,18 @@ def track_hist(fname,ev):
             r_lens = f['r_lens'][()]
         n_ph = f_idx - i_idx
         i_idx = f_idx
-        print 'opening the file %.2f with %i photons'%(time.time() - start_time,n_ph)
+        print 'opening the file %s took %.2f secs with %i photons'%(fname,time.time() - start_time,n_ph)
         tr_dist, er_dist = ia.new_track_dist(hit_pos, means, sigmas, False, r_lens)
         start_time = time.time()
         err_dist = 1./np.asarray(er_dist)
-        ks_par.append(ia.make_hist(bn_arr, tr_dist, err_dist))
+        ks_par.append(ia.make_hist(bn_arr, tr_dist, err_dist))   # bn_arr is a global!!!
+
+        print('Memory size: %d MB' % (process.memory_info().rss // 1000000))
+        tr_dist = None
+        er_dist = None
+        gc.collect()
+        print('Memory size after gc(): %d MB' % (process.memory_info().rss // 1000000))
+
         print 'making the histogram %.2f'%(time.time() - start_time)
     return ks_par
 
@@ -50,12 +60,29 @@ if __name__=='__main__':
     f_list = sorted(os.listdir(path))
     first = True
 
+    process = psutil.Process(os.getpid())
+
     for fl in [f_list[:len(f_list)/2],f_list[len(f_list)/2:]]:
         electron = path+fl[0]
         gamma = path+fl[1]
         print electron, gamma
-        e_chi2_arr = track_hist(electron,n_ev)
-        g_chi2_arr = track_hist(gamma,n_ev)
+
+        print('Memory size: %d MB' % (process.memory_info().rss // 1000000))
+        gc.collect()
+        print('Memory size after gc(): %d MB' % (process.memory_info().rss // 1000000))
+
+        #e_chi2_arr = track_hist(electron,n_ev)
+        _ = track_hist(electron,n_ev)
+        print('Memory size: %d MB' % (process.memory_info().rss // 1000000))
+        gc.collect()
+        print('Memory size after gc(): %d MB' % (process.memory_info().rss // 1000000))
+
+        _ = track_hist(gamma,n_ev)
+        #g_chi2_arr = track_hist(gamma,n_ev)
+        print('Memory size: %d MB' % (process.memory_info().rss // 1000000))
+        gc.collect()
+        print('Memory size after gc(): %d MB' % (process.memory_info().rss // 1000000))
+
         n_null = [np.mean(e_chi2_arr,axis=0),np.std(e_chi2_arr,axis=0)]
         e_hist = ia.chi2(n_null,e_chi2_arr)
         g_hist = ia.chi2(n_null,g_chi2_arr)

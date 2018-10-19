@@ -2,6 +2,8 @@ import matplotlib.patches as patches
 import matplotlib.pyplot as plt
 import h5py, glob, argparse
 import numpy as np
+import time
+import multiprocessing
 
 def process_timer(funct):
     import time
@@ -155,9 +157,28 @@ def find_cl(ss_site,ms_site,cl):
     ix = np.abs(ms_site-1+cl).argmin()
     return ss_site[ix]
 
+def thread_solve(ofs, i, sort_drct, sort_offset, sort_sigma, mask, sgm, dim_len):
+    mask_dir = sort_drct[i:][mask[i:]].reshape(-1, 3)
+    cross_dir = np.cross(sort_drct[i], mask_dir)
+    norm_d = np.einsum('ij,i->ij', cross_dir, 1.0 / np.linalg.norm(cross_dir, axis=1))
+    ofst_diff = ofs - sort_offset[i:][mask[i:]].reshape(-1, 3)
+    dist = np.absolute(np.einsum('ij,ij->i', ofst_diff, norm_d))
+
+    if not np.array_equal(sgm, False):
+        dct_stack = np.tile(sort_drct[i], mask_dir.shape[0]).reshape(-1, 3)
+        multp = syst_solve(dct_stack, mask_dir, ofst_diff)
+        sig = np.stack((np.repeat(sort_sigma[i], mask_dir.shape[0]), sort_sigma[i:][mask[i:, 0]]), axis=1)
+        sigma = np.linalg.norm(np.einsum('ij,ij->ij', sig, multp), axis=1)
+        sigma = sigma + dim_len
+    else:
+        sigma = 1 * len(dist)
+    return {'dist':dist, 'sigma':sigma}
+
+THREADED = True
 
 @process_timer
 def new_track_dist(ofst,drct,sgm=False,outlier=False,dim_len=0):
+    start = time.time()
     arr_dist, arr_sgm = [], []
     _, lns_idx  = np.unique(ofst,return_inverse=True,axis=0)
     sort_idx    = np.argsort(lns_idx)
@@ -169,6 +190,11 @@ def new_track_dist(ofst,drct,sgm=False,outlier=False,dim_len=0):
     fist_offset = sort_offset[0]
     mask        = sort_offset != fist_offset 
 
+    if THREADED:
+        pool = multiprocessing.Pool(multiprocessing.cpu_count() // 2)
+        print('Thread pool: %d' % (multiprocessing.cpu_count() // 2))
+        thread_results = []
+
     for i,ofs in enumerate(sort_offset):
         if np.array_equal(ofs,fist_offset):
             pass
@@ -176,21 +202,31 @@ def new_track_dist(ofst,drct,sgm=False,outlier=False,dim_len=0):
         else:
             fist_offset = ofs
             mask = sort_offset != ofs
-        mask_dir  = sort_drct[i:][mask[i:]].reshape(-1,3)
-        cross_dir = np.cross(sort_drct[i],mask_dir)
-        norm_d    = np.einsum('ij,i->ij',cross_dir,1.0/np.linalg.norm(cross_dir,axis=1))
-        ofst_diff = ofs - sort_offset[i:][mask[i:]].reshape(-1,3)
-        dist      = np.absolute(np.einsum('ij,ij->i',ofst_diff,norm_d))
-        arr_dist.extend(dist)
 
-        if not np.array_equal(sgm,False):
-            dct_stack = np.tile(sort_drct[i],mask_dir.shape[0]).reshape(-1,3)
-            multp = syst_solve(dct_stack,mask_dir,ofst_diff)
-            sig   = np.stack((np.repeat(sort_sigma[i],mask_dir.shape[0]),sort_sigma[i:][mask[i:,0]]),axis=1)
-            sigma = np.linalg.norm(np.einsum('ij,ij->ij',sig,multp),axis=1)
-            arr_sgm.extend(sigma+dim_len)
+        if THREADED:
+            result = pool.apply_async(thread_solve, (ofs, i, sort_drct, sort_offset, sort_sigma, mask, sgm, dim_len))
+            thread_results.append(result)
 
-        else: arr_sgm.extend(1*len(dist))
+        else:
+            dist, sgm = thread_solve(ofs, i, sort_drct, sort_offset, sort_sigma, mask, sgm, dim_len)
+            arr_dist.extend(dist)
+            arr_sgm.extend(sgm)
+
+        if i % 1000 == 0:
+            print('Time at %d is %f secs' % (i, time.time() - start))
+
+    if THREADED:
+        childs = multiprocessing.active_children()
+        print('Child count: ' + str(len(childs)))
+        pool.close()
+        pool.join()
+        childs = multiprocessing.active_children()
+        print('Child count: ' + str(len(childs)))
+        print('Result count: %d' % len(thread_results))
+        for result in thread_results:
+            ds_dict = result.get()
+            arr_dist.extend(ds_dict['dist'])
+            arr_sgm.extend(ds_dict['sigma'])
 
     return arr_dist,arr_sgm
 
