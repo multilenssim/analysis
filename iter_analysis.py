@@ -5,13 +5,15 @@ import numpy as np
 import time
 import multiprocessing
 
+from logger_lfd import logger
+
 def process_timer(funct):
     import time
 
     def wrapper(*args,**kwargs):
         start_time = time.time()
         result = funct(*args,**kwargs)
-        print 'function %s executed in %.2f'%(funct.__name__,time.time() - start_time)
+        logger.info('function %s executed in %.2f'%(funct.__name__,time.time() - start_time))
         return result
 
     return wrapper
@@ -129,7 +131,7 @@ def track_util(f_name,ev,tag):
             elif tag == 'chi2':
                 ks_par.append(make_hist(bn_arr,tr_dist,c_wgt=err_dist))
 
-        print f_name
+        logger.info('File name: %s' % f_name)
 
     return ks_par
 
@@ -174,7 +176,7 @@ def thread_solve(ofs, i, sort_drct, sort_offset, sort_sigma, mask, sgm, dim_len)
         sigma = 1 * len(dist)
     return {'dist':dist, 'sigma':sigma}
 
-THREADED = True
+THREADED = False
 
 @process_timer
 def new_track_dist(ofst,drct,sgm=False,outlier=False,dim_len=0):
@@ -191,8 +193,9 @@ def new_track_dist(ofst,drct,sgm=False,outlier=False,dim_len=0):
     mask        = sort_offset != fist_offset 
 
     if THREADED:
-        pool = multiprocessing.Pool(multiprocessing.cpu_count() // 2)
-        print('Thread pool: %d' % (multiprocessing.cpu_count() // 2))
+        threads_allowed = multiprocessing.cpu_count()
+        pool = multiprocessing.Pool(threads_allowed)
+        logger.info('Thread pool size: %d' % threads_allowed)
         thread_results = []
 
     for i,ofs in enumerate(sort_offset):
@@ -212,8 +215,9 @@ def new_track_dist(ofst,drct,sgm=False,outlier=False,dim_len=0):
             arr_dist.extend(dist)
             arr_sgm.extend(sgm)
 
-        if i % 1000 == 0:
-            print('Time at %d is %f secs' % (i, time.time() - start))
+        if i % 5000 == 0:
+            logger.info('Time at %d is %f secs' % (i, time.time() - start))
+            pass
 
     if THREADED:
         childs = multiprocessing.active_children()
